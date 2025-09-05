@@ -1,22 +1,18 @@
-import asyncio
 import json
-from nanocode1.final_launch import Coding_agent
-from nanocode1.models.dissertation_plan import DissertationPlan
-from nanocode1.models import ReportModel
+from daytona_management.agent import generate_report
 
-async def main():
-    agent = Coding_agent(working_dir="/Users/gengjiawei/Desktop/testdir")
-    plan = DissertationPlan.from_file("/Users/gengjiawei/Documents/coding/nano-code-main-2/Json—test/result_1756975300.8282976.json")
-    existing_report = None  # 没有现有报告时传递 None
 
-    #existing_report = ReportModel.from_file("/Users/gengjiawei/Desktop/testdir/agent_output.json")
-    # 传入plan和已有的report_model
-    reportorplan = await agent.generate_report(plan, existing_report)
+def main():
+    plan_json = "/Users/gengjiawei/Documents/coding/nano-code-main-2/Json—test/test1.json"
+    uploadfolder = "/Users/gengjiawei/Desktop/uploadfolder"
 
-    if isinstance(reportorplan, DissertationPlan):
-        print(json.dumps(reportorplan.model_dump(), ensure_ascii=False, indent=2))
-    elif isinstance(reportorplan, ReportModel):
-        print(json.dumps(reportorplan.model_dump(), ensure_ascii=False, indent=2))
+    result = generate_report(plan_json, uploadfolder)
 
-asyncio.run(main())
+    if hasattr(result, "model_dump"):
+        print(json.dumps(result.model_dump(), ensure_ascii=False, indent=2))
+    else:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
 
+
+if __name__ == "__main__":
+    main()

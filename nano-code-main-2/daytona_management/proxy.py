@@ -70,7 +70,7 @@ class NanoCodeProxy:
             print(f"⚠️  解析JSON失败，默认阶段: {e}")
             return "CodeRepositoryReview"
     
-    def start_nano_code_json(self, json_file_path: str):
+    def start_nano_code_json(self, json_file_path: str, uploadfolder: str):
         """执行JSON任务文件"""
         print(f"🚀 开始执行JSON任务")
         
@@ -85,8 +85,15 @@ class NanoCodeProxy:
             
             self.workspace_manager.setup_secure_workspace(session_id)
             
-            # 上传JSON文件
-            json_remote_path = self.file_transfer.process_json_file_and_upload(json_file_path)
+            # 若提供 uploadfolder，则先上传整个文件夹到 /workspace/tmp，并将 JSON 中工作区相关路径改写为容器路径
+            # 强制要求提供 uploadfolder：统一上传并改写 JSON 路径
+            uploaded_count = self.file_transfer.upload_workspace_dir(uploadfolder)
+            if uploaded_count == 0:
+                print("⚠️  外部资源目录为空或不可用")
+            json_remote_path = self.file_transfer.process_json_and_rewrite_by_workspace(
+                json_file_path,
+                workspace_local_dir=uploadfolder,
+            )
             
             # 执行任务
             self.task_executor.execute_json_task(session_id, json_remote_path)

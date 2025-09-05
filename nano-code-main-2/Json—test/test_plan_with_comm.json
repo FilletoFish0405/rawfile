@@ -6,6 +6,7 @@
     "轻量化评测任务设计"
   ],
   "experimental_requirements": {
+    "overall_requirements": "Validate nano-code's lightweight capabilities through code review, reproduction tasks, and critical evaluation",
     "code_repository_review": {
       "url": "https://github.com/gusye1234/nano-code",
       "description": "nano-code 仓库，包含一个简化的 Coding Agent 实现。",

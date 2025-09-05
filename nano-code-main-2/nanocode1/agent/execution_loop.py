@@ -105,6 +105,13 @@ async def run_loop(
         
         # 调用LLM - 使用统一的系统提示词构建
         formatted_system_prompt = prompt_builder.build_system_prompt(session, system_prompt)
+        
+        if messages:
+            last_msg = messages[-1]
+            role = last_msg.get('role', 'unknown')
+            content = str(last_msg.get('content', ''))
+            console.print(f"[轮次 {iteration}] LLM输入 [{role}]: {content}")
+        
         response = await llm_complete(
             session,
             session.working_env.llm_main_model,
@@ -114,6 +121,12 @@ async def run_loop(
         )
         
         choice = response.choices[0]
+        
+        # 打印LLM输出  
+        console.print(f"[轮次 {iteration}] LLM输出: finish_reason={choice.finish_reason}")
+        if choice.message.content:
+            console.print(f"[轮次 {iteration}] LLM内容: {choice.message.content[:100]}...")
+
         
         if choice.finish_reason != "tool_calls":
             # 更新最后的助手消息

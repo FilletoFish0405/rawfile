@@ -37,6 +37,7 @@ def print_panel(console: Console, text: str, title: str):
     # 转义语法 防止markdown语法错误
     safe_content = text.replace('[', '\\[').replace(']', '\\]')
     console.print(Panel(M(safe_content), title=title))
+    print("---------------------玲玲玲玲---------")
 
 
 def print_stage(console: Console, iteration: int, max_iterations: int):

@@ -43,7 +43,7 @@
   },
   "urls": [
     {
-      "url": "E:/pycharm_project/plato/src/server/plato_server/agents/search_agent/agents/DataCaseStudy2024.xlsx",
+      "url": "/Users/gengjiawei/Desktop/uploadfolder/DataCaseStudy2024_副本.xlsx",
       "description": "Excel file containing recycling costs, facility capacities, and waste generation data for use in the optimization model."
     }
   ],

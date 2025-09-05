@@ -32,13 +32,24 @@ class TaskExecutor:
     
     
     def _build_json_command(self, json_remote_path: str) -> str:
-        """构建JSON任务执行命令"""
+        """构建JSON任务执行命令（集成 final_launch.Coding_agent）"""
+        # 使用 nanocode1.final_launch 中的 Coding_agent 以编排完整工作流
+        python_one_liner = (
+            "from nanocode1.final_launch import Coding_agent; "
+            "from nanocode1.models.dissertation_plan import DissertationPlan; "
+            "import asyncio, json; "
+            f"agent = Coding_agent(\"{PathConfig.TMP_DIR}\"); "
+            f"plan = DissertationPlan.from_file(\"{json_remote_path}\"); "
+            "res = asyncio.run(agent.generate_report(plan)); "
+            "print(getattr(res, 'model_dump_json', lambda: json.dumps(res.model_dump(), ensure_ascii=False))())"
+        )
+
         return (
-            f'cd {PathConfig.TMP_DIR} && '
-            f'OPENAI_API_KEY="{self.llm_config.api_key}" '
-            f'LLM_BASE_URL="{self.llm_config.base_url}" '
-            f'PYTHONPATH="{PathConfig.SYSTEM_DIR}:$PYTHONPATH" '
-            f'python -m nanocode1 "{json_remote_path}" --working-dir {PathConfig.TMP_DIR}'
+            f"cd {PathConfig.TMP_DIR} && "
+            f"OPENAI_API_KEY=\"{self.llm_config.api_key}\" "
+            f"LLM_BASE_URL=\"{self.llm_config.base_url}\" "
+            f"PYTHONPATH=\"{PathConfig.SYSTEM_DIR}:$PYTHONPATH\" "
+            f"python -c '{python_one_liner}'"
         )
     
     def _execute_command(self, session_id: str, command: str):

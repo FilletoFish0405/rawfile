@@ -14,79 +14,107 @@ class FileTransfer:
     def __init__(self, sandbox):
         self.sandbox = sandbox
     
-    def upload_files(self, local_files: List[str]) -> List[str]:
-        """
-        上传本地文件到upload目录
-        Args:
-            local_files (List[str]): 本地文件路径列表
-        Returns:
-            List[str]: 上传后的远程文件路径列表
-        """
-        print("📤 开始上传文件到upload目录...")
-        uploaded_paths = []
-        
-        if not local_files:
-            print("📁 无文件上传")
-            return uploaded_paths
-        
-        # 批量上传文件
-        total_files = len(local_files)
-        successful_uploads = 0
-        
-        for i, local_file in enumerate(local_files, 1):
-            local_path = Path(local_file)
-            if not local_path.exists():
-                print(f"⚠️  本地文件不存在: {local_file}")
-                continue
-                
-            remote_path = f"{PathConfig.TMP_DIR}/{local_path.name}"
-            
-            try:
-                with open(local_path, 'rb') as f:
-                    file_content = f.read()
-                
-                self.sandbox.fs.upload_file(file_content, remote_path)
-                uploaded_paths.append(remote_path)
-                successful_uploads += 1
-                print(f"✅ 上传成功 ({i}/{total_files}): {local_file} → {remote_path}")
-                
-            except Exception as e:
-                print(f"❌ 上传失败 ({i}/{total_files}): {local_file} - {e}")
-        
-        if successful_uploads > 0:
-            print(f"📁 上传完成：{successful_uploads}/{total_files} 个文件成功")
-        
-        return uploaded_paths
+    # 移除了旧的 upload_files 方法：不再支持零散文件上传，统一通过 upload_workspace_dir 处理
 
-    def process_json_file_and_upload(self, json_file_path: str) -> str:
+    def upload_workspace_dir(self, local_dir: str) -> int:
         """
-        处理JSON文件上传并返回远程路径, 这里是特殊的上传因为这个文件是任务上传
-        Args:
-            json_file_path (str): JSON文件路径
-        Returns:
-            str: 上传后的远程文件路径
+        上传本地 workspace 目录的所有文件到容器的 /workspace/tmp 下，保持相对路径结构。
+        不筛选、不判断存在性（遍历现有文件）。
+
+        Returns: 成功上传的文件数量
+        """
+        root = Path(local_dir).expanduser()
+        if not root.exists() or not root.is_dir():
+            print(f"⚠️  工作区目录无效: {local_dir}")
+            return 0
+
+        print(f"📤 上传工作区目录: {root} → {PathConfig.TMP_DIR}")
+        count = 0
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(root)
+            # 规范化为容器路径
+            remote_path = f"{PathConfig.TMP_DIR}/{str(rel).replace('\\\\','/').replace('\\','/')}"
+            try:
+                with open(path, 'rb') as f:
+                    content = f.read()
+                self.sandbox.fs.upload_file(content, remote_path)
+                count += 1
+                if count <= 5:
+                    print(f"  ✅ {rel}")
+            except Exception as e:
+                print(f"  ❌ 上传失败 {rel}: {e}")
+        print(f"📁 工作区上传完成，共 {count} 个文件")
+        return count
+
+    # 移除了旧的 process_json_file_and_upload：统一使用 process_json_and_rewrite_by_workspace
+
+    # 移除了旧的本地资源判断/上传细粒度方法：统一通过 upload_workspace_dir
+
+    # 移除了旧的基于逐个文件上传并重写 JSON 的方法：统一以 workspace 为根进行路径替换
+
+    def process_json_and_rewrite_by_workspace(self, json_file_path: str, workspace_local_dir: str) -> str:
+        """
+        基于本地 workspace 根路径，将 JSON 中引用到 workspace 下的路径重写为容器路径 /workspace/tmp/<相对路径>，
+        不做存在性判断；然后上传重写后的 JSON 到容器并返回路径。
         """
         local_path = Path(json_file_path)
-        
         if not local_path.exists():
             raise FileNotFoundError(f"JSON文件不存在: {json_file_path}")
-        
         if not local_path.suffix.lower() == '.json':
             raise ValueError(f"输入文件必须是JSON格式: {json_file_path}")
-        
-        # 上传JSON文件到远程
-        remote_path = f"{PathConfig.TMP_DIR}/{local_path.name}"
-        
+
+        with open(local_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+
+        root = Path(workspace_local_dir).expanduser().resolve()
+
+        def to_remote(p: str) -> str:
+            if not isinstance(p, str) or not p.strip():
+                return p
+            lp = Path(os.path.expanduser(p))
+            # 相对路径：直接挂到 /workspace/tmp 下
+            if not lp.is_absolute():
+                rp = f"{PathConfig.TMP_DIR}/{p}"
+                return rp.replace('\\\\','/').replace('\\','/')
+            # 绝对路径：如果在 workspace 内，则转相对后再拼
+            try:
+                rel = lp.resolve().relative_to(root)
+                rp = f"{PathConfig.TMP_DIR}/{rel}"
+                return rp.replace('\\\\','/').replace('\\','/')
+            except Exception:
+                # 不在 workspace 下的，保持原值（由 Agent 自行处理）
+                return p
+
+        # 重写已知字段
         try:
-            with open(local_path, 'rb') as f:
-                file_content = f.read()
-            
-            self.sandbox.fs.upload_file(file_content, remote_path)
-            print(f"✅ 上传JSON文件: {json_file_path} → {remote_path}")
-            return remote_path
-            
-        except Exception as e:
-            raise Exception(f"上传JSON文件失败: {json_file_path} - {e}")
+            exp = data.get('experimental_requirements') or {}
+            repo = exp.get('code_repository_review') or {}
+            if 'url' in repo and isinstance(repo['url'], str):
+                repo['url'] = to_remote(repo['url'])
+                exp['code_repository_review'] = repo
+                data['experimental_requirements'] = exp
+        except Exception:
+            pass
+
+        try:
+            urls = data.get('urls')
+            if isinstance(urls, list):
+                for i, item in enumerate(urls):
+                    if isinstance(item, dict) and 'url' in item and isinstance(item['url'], str):
+                        item['url'] = to_remote(item['url'])
+                        urls[i] = item
+                data['urls'] = urls
+        except Exception:
+            pass
+
+        resolved_name = f"{local_path.stem}-resolved.json"
+        remote_json_path = f"{PathConfig.TMP_DIR}/{resolved_name}"
+        content = json.dumps(data, ensure_ascii=False, indent=2)
+        self.sandbox.fs.upload_file(content.encode('utf-8'), remote_json_path)
+        print(f"✅ 上传重写后的JSON(工作区路径替换): {local_path.name} → {remote_json_path}")
+        return remote_json_path
     
     def download_results(self, session_id: str) -> List[str]:
         """

@@ -67,6 +67,15 @@ class CreateTodoList(AgentToolDefine):
                 )
                 todo_items.append(todo_item)
             
+            # 固定添加最后一个TODO项：检查agent_output文件输出
+            final_todo = TodoItem(
+                id="OUTPUT",
+                description="确认生成agent_output.json文件",
+                required_tools=["create_file", "write_file"],
+                success_criteria="agent_output.json文件已创建并包含完整的报告和artifacts信息"
+            )
+            todo_items.append(final_todo)
+            
             session.todo_list = todo_items
             
             todo_file = Path(session.working_dir) / "agent_todo_list.json"
@@ -75,8 +84,8 @@ class CreateTodoList(AgentToolDefine):
                          ensure_ascii=False, indent=2)
             
             return AgentToolReturn(
-                for_llm=f"Created TODO list with {len(todo_items)} items",
-                for_human=f"✅ 创建了 {len(todo_items)} 项TODO清单"
+                for_llm=f"Created TODO list with {len(todo_items)} items (including final output check)",
+                for_human=f"✅ 创建了 {len(todo_items)} 项TODO清单（包含最终输出检查）"
             )
         except Exception as e:
             return AgentToolReturn(
